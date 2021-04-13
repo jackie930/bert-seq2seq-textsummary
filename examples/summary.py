@@ -36,7 +36,7 @@ class BertDataset(Dataset):
         ## 一般init函数是加载所有数据
         super(BertDataset, self).__init__()
         ## 拿到所有文件名字
-        self.txts = glob.glob('./state_dict/财经/*.txt')
+        self.txts = glob.glob('./data/*.txt')
     
         self.idx2word = {k: v for v, k in word2idx.items()}
         self.tokenizer = Tokenizer(word2idx)
@@ -47,10 +47,10 @@ class BertDataset(Dataset):
         text_name = self.txts[i]
         with open(text_name, "r", encoding="utf-8") as f:
             text = f.read()
-        text = text.split('\n')
+        text = text.split('SPLIT')
         if len(text) > 1:
             title = text[0]
-            content = '\n'.join(text[1:])
+            content = text[1]
             token_ids, token_type_ids = self.tokenizer.encode(
                 content, title, max_length=maxlen
             )
