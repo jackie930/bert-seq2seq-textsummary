@@ -16,5 +16,5 @@ python examples/summary.py
 ~~~
 
 ## predict
-
+python test/auto_title_test.py 
 ## deploy

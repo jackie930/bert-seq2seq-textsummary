@@ -1,7 +1,7 @@
 import torch 
 import torch.nn as nn 
 import sys
-sys.path.append("/Users/xingzhaohu/Downloads/code/python/ml/ml_code/bert/bert_seq2seq")
+sys.path.append("./bert_seq2seq")
 from torch.optim import Adam
 import pandas as pd
 import numpy as np
