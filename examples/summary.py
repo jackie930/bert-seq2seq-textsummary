@@ -18,12 +18,12 @@ from torch.utils.data import Dataset, DataLoader
 from bert_seq2seq.tokenizer import Tokenizer, load_chinese_base_vocab
 from bert_seq2seq.utils import load_bert
 
-vocab_path = "./state_dict/vocab.txt"  # 模型字典的位置
+vocab_path = "./state_dict/bert-base-chinese-vocab.txt"  # 模型字典的位置
 word2idx, keep_tokens = load_chinese_base_vocab(vocab_path, simplfied=True)
 model_name = "bert"  # 选择模型名字
 model_path = "./state_dict/pytorch_model.bin"  # 模型位置
-recent_model_path = "./state_dict/bert_auto_title_model.bin"   # 用于把已经训练好的模型继续训练
-model_save_path = "./state_dict/bert_auto_title_model.bin"
+recent_model_path = "./state_dict/bert_auto_title_model-sports.bin"   # 用于把已经训练好的模型继续训练
+model_save_path = "./state_dict/bert_auto_title_model-sports.bin"
 batch_size = 16
 lr = 1e-5
 maxlen = 256
@@ -32,12 +32,11 @@ class BertDataset(Dataset):
     """
     针对特定数据集，定义一个相关的取数据的方式
     """
-    def __init__(self) :
+    def __init__(self,txt_folder) :
         ## 一般init函数是加载所有数据
         super(BertDataset, self).__init__()
         ## 拿到所有文件名字
-        self.txts = glob.glob('./data/*.txt')
-    
+        self.txts = glob.glob(txt_folder+'/*.txt')
         self.idx2word = {k: v for v, k in word2idx.items()}
         self.tokenizer = Tokenizer(word2idx)
 
@@ -89,7 +88,7 @@ def collate_fn(batch):
     return token_ids_padded, token_type_ids_padded, target_ids_padded
 
 class Trainer:
-    def __init__(self):
+    def __init__(self,txt_folder):
         # 判断是否有可用GPU
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("device: " + str(self.device))
@@ -106,7 +105,7 @@ class Trainer:
         self.optim_parameters = list(self.bert_model.parameters())
         self.optimizer = torch.optim.Adam(self.optim_parameters, lr=lr, weight_decay=1e-3)
         # 声明自定义的数据加载器
-        dataset = BertDataset()
+        dataset = BertDataset(txt_folder)
         self.dataloader =  DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
     def train(self, epoch):
@@ -168,8 +167,8 @@ class Trainer:
         self.save(model_save_path)
 
 if __name__ == '__main__':
-
-    trainer = Trainer()
+    txt_folder = '../data/sports'
+    trainer = Trainer(txt_folder)
     train_epoches = 20
 
     for epoch in range(train_epoches):
