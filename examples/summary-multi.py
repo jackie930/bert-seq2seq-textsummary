@@ -18,6 +18,7 @@ from torch.utils.data import Dataset, DataLoader
 
 from bert_seq2seq.tokenizer import Tokenizer, load_chinese_base_vocab
 from bert_seq2seq.utils import load_bert
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 vocab_path = "./state_dict/bert-base-chinese-vocab.txt"  # 模型字典的位置
 word2idx, keep_tokens = load_chinese_base_vocab(vocab_path, simplfied=True)
@@ -124,6 +125,10 @@ class Trainer:
         # 判断是否有可用GPU
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("device: " + str(self.device))
+
+        self.gpu_count = torch.cuda.device_count()
+        self.device_ids = list(range(self.gpu_count))
+
         # 定义模型
         self.bert_model = load_bert(word2idx, model_name=model_name)
         ## 加载预训练的模型参数～
@@ -133,9 +138,14 @@ class Trainer:
 
         # 将模型发送到计算设备(GPU或CPU)
         self.bert_model.set_device(self.device)
+        #multi-gpu
+        if self.gpu_count>1:
+            self.bert_model = torch.nn.DataParallel(self.bert_model,device_ids=self.device_ids)
+
         # 声明需要优化的参数
         self.optim_parameters = list(self.bert_model.parameters())
         self.optimizer = torch.optim.Adam(self.optim_parameters, lr=lr, weight_decay=1e-3)
+        self.optimizer = torch.nn.DataParallel(self.optimizer, device_ids=self.device_ids)
         # 声明自定义的数据加载器
         dataset = BertDataset(txt_folder)
         self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
@@ -149,8 +159,12 @@ class Trainer:
         """
         保存模型
         """
-        self.bert_model.save_all_params(save_path)
-        print("{} saved!".format(save_path))
+        if isinstance(self.bert_model, torch.nn.DataParallel):
+            torch.save(self.bert_model.module.state_dict(), save_path)
+            print("{} saved!".format(save_path))
+        else:
+            self.bert_model.save_all_params(save_path)
+            print("{} saved!".format(save_path))
 
     def iteration(self, epoch, dataloader, train=True):
         total_loss = 0
@@ -159,7 +173,10 @@ class Trainer:
         report_loss = 0
         for token_ids, token_type_ids, target_ids in tqdm(dataloader, position=0, leave=True):
             step += 1
-            if step % 100 == 0:
+            if step % 1000 == 0:
+                if isinstance(self.bert_model, torch.nn.DataParallel):
+                    self.bert_model = self.bert_model.module
+
                 self.bert_model.eval()
                 test_data = [
                     "新浪财经讯 3月9日下午消息 花旗银行(中国)有限公司(花旗中国)今日宣布，联手亨德森全球投资(亨德森)，推出花旗银行代客境外理财产品——亨德森全球远见基金系列。该产品系列的推出标志着花旗银行成为中国首家提供代客境外理财产品——房地产海外基金的银行。",
@@ -179,18 +196,18 @@ class Trainer:
                                                 labels=target_ids,
 
                                                 )
-            report_loss += loss.item()
+            report_loss += loss.mean()
             # 反向传播
             if train:
                 # 清空之前的梯度
                 self.optimizer.zero_grad()
                 # 反向传播, 获取新的梯度
-                loss.backward()
+                loss.mean().backward()
                 # 用获取的梯度更新模型参数
-                self.optimizer.step()
+                self.optimizer.module().step()
 
             # 为计算当前epoch的平均loss
-            total_loss += loss.item()
+            total_loss += loss.mean()
 
         end_time = time.time()
         spend_time = end_time - start_time
