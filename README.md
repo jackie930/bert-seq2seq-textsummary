@@ -26,9 +26,9 @@ aws s3 cp s3://datalab2021-cn/textsummary/data/THUCNews/体育/ data/sports/ --r
 训练model-baseline
 ~~~
 source activate pytorch_p36
+pip install -r requirements.txt
 python examples/summary.py
 ~~~
-
 
 然后准备训练数据，运行下面的脚本进行模型训练。
 ~~~
