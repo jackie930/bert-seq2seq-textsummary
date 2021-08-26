@@ -40,8 +40,8 @@ class BertDataset(Dataset):
         ## 一般init函数是加载所有数据
         super(BertDataset, self).__init__()
         ## 拿到所有文件名字
-        self.txts = glob.glob(txt_folder + '/*.txt')
-        # print ("self.txts",self.txts)
+        self.txts = glob.glob(txt_folder + '/*/*.txt')
+        print ("self.txts",len(self.txts))
         self.idx2word = {k: v for v, k in word2idx.items()}
         self.tokenizer = Tokenizer(word2idx)
 
@@ -138,14 +138,17 @@ class Trainer:
 
         # 将模型发送到计算设备(GPU或CPU)
         self.bert_model.set_device(self.device)
+
         #multi-gpu
         if self.gpu_count>1:
             self.bert_model = torch.nn.DataParallel(self.bert_model,device_ids=self.device_ids)
+        # 将模型发送到计算设备(GPU或CPU)
+        #self.bert_model.to(self.device)
 
         # 声明需要优化的参数
         self.optim_parameters = list(self.bert_model.parameters())
         self.optimizer = torch.optim.Adam(self.optim_parameters, lr=lr, weight_decay=1e-3)
-        self.optimizer = torch.nn.DataParallel(self.optimizer, device_ids=self.device_ids)
+        #self.optimizer = torch.nn.DataParallel(self.optimizer, device_ids=self.device_ids)
         # 声明自定义的数据加载器
         dataset = BertDataset(txt_folder)
         self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
@@ -173,7 +176,8 @@ class Trainer:
         report_loss = 0
         for token_ids, token_type_ids, target_ids in tqdm(dataloader, position=0, leave=True):
             step += 1
-            if step % 1000 == 0:
+            '''
+            if step % 30 == 0:
                 if isinstance(self.bert_model, torch.nn.DataParallel):
                     self.bert_model = self.bert_model.module
 
@@ -187,10 +191,17 @@ class Trainer:
                 report_loss = 0
                 # self.eval(epoch)
                 self.bert_model.train()
-            if step % 8000 == 0:
+            '''
+            if step % 30 == 0:
                 self.save(model_save_path)
 
             # 因为传入了target标签，因此会计算loss并且返回
+            #if hasattr(torch.cuda,'empty_cache'):
+             #   torch.cuda.empty_cache()
+
+            #token_ids.to(self.device)
+            #token_type_ids.to(self.device)
+            #target_ids.to(self.device)
             predictions, loss = self.bert_model(token_ids,
                                                 token_type_ids,
                                                 labels=target_ids,
@@ -204,10 +215,14 @@ class Trainer:
                 # 反向传播, 获取新的梯度
                 loss.mean().backward()
                 # 用获取的梯度更新模型参数
-                self.optimizer.module().step()
+                #self.optimizer.module().step()
+                self.optimizer.step()
 
             # 为计算当前epoch的平均loss
             total_loss += loss.mean()
+            # print loss every 100 step
+            if step % 100 == 0:
+                print("step is " + str(step) + ". loss is " + str(loss.mean()) + ". train batch size is " + str(batch_size))
 
         end_time = time.time()
         spend_time = end_time - start_time
@@ -218,9 +233,9 @@ class Trainer:
 
 
 if __name__ == '__main__':
-    txt_folder = './data/sports'
+    txt_folder = './THUCNews'
     trainer = Trainer(txt_folder)
-    train_epoches = 20
+    train_epoches = 5
 
     for epoch in range(train_epoches):
         # 训练一个epoch
