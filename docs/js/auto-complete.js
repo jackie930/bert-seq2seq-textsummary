@@ -192,7 +192,7 @@ var autoComplete = (function(){
             if (!o.minChars) addEvent(that, 'focus', that.focusHandler);
         }
 
-        // public destroy method
+        // docs destroy method
         this.destroy = function(){
             for (var i=0; i<elems.length; i++) {
                 var that = elems[i];
